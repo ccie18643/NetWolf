@@ -6,6 +6,8 @@ import itertools
 import json
 import struct
 
+import netjson
+
 
 def is_socket_closed(sock):
     try:
@@ -28,14 +30,14 @@ async def agent_connection(reader, writer):
     agent = writer.get_extra_info("peername")
     sock = writer.get_extra_info("socket")
 
+    nj = netjson.NetJson(reader, writer)
+
     agents[agent] = []
     print(f"Added agent {agent} to agent list")
 
     while not is_socket_closed(sock):
         if agents[agent]:
-            job = bytes(json.dumps(agents[agent].pop()), "utf-8")
-            writer.write(struct.pack("!H", len(job)) + job)
-            #await writer.drain()
+            await nj.write(agents[agent].pop())
         await asyncio.sleep(0.1)
 
     print(f"Connectin to agent {agent} has been closed")

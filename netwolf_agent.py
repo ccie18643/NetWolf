@@ -15,6 +15,7 @@ from asyncio.exceptions import TimeoutError
 from os import system
 import multiprocessing
 
+import netjson
 
 def is_socket_closed(sock):
     try:
@@ -80,22 +81,19 @@ async def start_workers(manager_address, manager_port):
     asyncio.create_task(print_results())
     job_buffer = b""
 
+
     while True:
         try:
             print(f"Attempting connction to {manager_address}, port {manager_port}")
             reader, writer = await asyncio.open_connection(manager_address, manager_port)
             sock = writer.get_extra_info("socket")
 
-            while not is_socket_closed(sock):
-                job_buffer += await reader.read(2048)
-                job_len = struct.unpack("!H", job_buffer[0:2])[0]
-                if len(job_buffer) < job_len:
-                    await asyncio.sleep(0.1)
-                    continue
+            nj = netjson.NetJson(reader, writer)
 
-                job = job_buffer[2 : job_len + 2]
-                job_buffer = job_buffer[2 + job_len :]
-                job = json.loads(job)
+            while not is_socket_closed(sock):
+                await nj.socket_read()
+
+                job = await nj.read()
 
                 if job["host"] not in workers:
                     asyncio.create_task(worker(job))

@@ -14,8 +14,9 @@ from netdev.exceptions import DisconnectError
 from asyncio.exceptions import TimeoutError
 from os import system
 import multiprocessing
-
+import random
 import netjson
+
 
 def is_socket_closed(sock):
     try:
@@ -55,7 +56,7 @@ async def worker(job):
 
     try:
         async with netdev.create(**job) as cli:
-            while time.time() - workers[job["host"]] < 5:
+            while workers[job["host"]] > time.time():
                 results[job["host"]] = {poll["id"]: out for poll in polls if (out := find_regex_ml(await cli.send_command(poll["command"]), poll["regex"])[0])}
                 await asyncio.sleep(1)
     except (
@@ -70,17 +71,15 @@ async def worker(job):
         IndexError,
     ):
         pass
-        
+
     workers.pop(job["host"])
     results.pop(job["host"], None)
-
 
 async def start_workers(manager_address, manager_port):
     """ Process function """
 
     asyncio.create_task(print_results())
     job_buffer = b""
-
 
     while True:
         try:
@@ -90,16 +89,36 @@ async def start_workers(manager_address, manager_port):
 
             nj = netjson.NetJson(reader, writer)
 
+            jobs = []
+
             while not is_socket_closed(sock):
-                await nj.socket_read()
 
-                job = await nj.read()
+                jobs = await nj.read()
 
-                if job["host"] not in workers:
-                    asyncio.create_task(worker(job))
+                jobs_hosts = set(_["host"] for _ in jobs)
+                active_hosts = set(workers)
+                batch_hosts = set()
 
-                workers[job["host"]] = int(time.time())
-                await asyncio.sleep(0.1)
+                if jobs_hosts:
+                    for _ in range(10):
+                        if candidate_hosts := list(jobs_hosts - active_hosts - batch_hosts):
+                            batch_hosts.add(random.choice(candidate_hosts))
+
+                    print("JOB", len(jobs_hosts))
+                    print("ACTIVE", len(active_hosts))
+                    print("BATCH",len(batch_hosts))
+                    print()
+
+                    for job in jobs:
+                        if job["host"] in batch_hosts:
+                            #print(job["host"])
+                            asyncio.create_task(worker(job))
+                            workers[job["host"]] = time.time() + 60
+                            continue
+                        if workers.get(job["host"], None):
+                            workers[job["host"]] = time.time() + 15
+
+                await asyncio.sleep(1)
 
         except ConnectionRefusedError:
             await asyncio.sleep(1)
@@ -115,10 +134,10 @@ async def print_results():
     """ """
 
     while True:
-        system("clear")
+        # system("clear")
         n = 0
         for host in results:
-            print(f"{int(results[host]['cpu']):02}", "", end="" if n % 10 else "\n")
+            #print(f"{int(results[host]['cpu']):02}", "", end="" if n % 10 else "\n")
             n += 1
         await asyncio.sleep(1)
 

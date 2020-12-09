@@ -36,9 +36,9 @@ async def agent_connection(reader, writer):
     print(f"Added agent {agent} to agent list")
 
     while not is_socket_closed(sock):
-        if agents[agent]:
-            await nj.write(agents[agent].pop())
-        await asyncio.sleep(0.1)
+        await nj.write(agents[agent])
+        agents[agent].clear()
+        await asyncio.sleep(5)
 
     print(f"Connectin to agent {agent} has been closed")
     writer.close()
@@ -70,9 +70,9 @@ async def dispatcher():
 
         for job in jobs:
             if agent := pick_agent(job["host"]):
-                #print(job["host"], agent)
-                agents[agent].append(job)
-            await asyncio.sleep(0.1)
+                if job not in agents[agent]:
+                    agents[agent].append(job)
+        await asyncio.sleep(1)
 
 
 async def agent_monitor():
@@ -91,7 +91,7 @@ async def main():
     addr = server.sockets[0].getsockname()
     print(f"Server waiting for agents on: {addr}")
 
-    #asyncio.create_task(agent_monitor())
+    # asyncio.create_task(agent_monitor())
     asyncio.create_task(dispatcher())
 
     async with server:

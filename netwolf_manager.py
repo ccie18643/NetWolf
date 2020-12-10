@@ -41,17 +41,19 @@ async def dispatcher():
 
         jobs = [
             {
-                "host": _,
-                "device_type": "cisco_ios",
-                "username": "vf10netcat1",
-                "client_keys": "/home/netcat_backup/.ssh/id_rsa",
-                "polls": [{"id": "cpu", "command": "show processes cpu | include CPU", "regex": r"ds: (\d{1,2})"}],
+                "login": {
+                    "host": _,
+                    "device_type": "cisco_ios",
+                    "username": "vf10netcat1",
+                    "client_keys": "/home/netcat_backup/.ssh/id_rsa",
+                },
+                "tasks": [{"id": "cpu", "command": "show processes cpu | include CPU", "regex": r"ds: (\d{1,2})"}],
             }
             for _ in hosts
         ]
 
         for job in jobs:
-            if agent := pick_agent(job["host"]):
+            if agent := pick_agent(job["login"]["host"]):
                 if job not in agents[agent]:
                     agents[agent].append(job)
         await asyncio.sleep(1)

@@ -37,12 +37,10 @@ results = {}
 async def worker(job):
     """ Worker coroutine """
 
-    polls = job.pop("polls")
-
     try:
-        async with netdev.create(**job) as cli:
-            while workers[job["host"]] > time.time():
-                results[job["host"]] = {poll["id"]: out for poll in polls if (out := find_regex_ml(await cli.send_command(poll["command"]), poll["regex"])[0])}
+        async with netdev.create(**job["login"]) as cli:
+            while workers[job["login"]["host"]] > time.time():
+                results[job["login"]["host"]] = {__["id"]: _ for __ in job["tasks"] if (_ := find_regex_ml(await cli.send_command(__["command"]), __["regex"])[0])}
                 await asyncio.sleep(1)
     except (
         ConnectionLost,
@@ -58,8 +56,8 @@ async def worker(job):
     ):
         pass
 
-    workers.pop(job["host"])
-    results.pop(job["host"], None)
+    workers.pop(job["login"]["host"])
+    results.pop(job["login"]["host"], None)
 
 
 async def start_workers(manager_address, manager_port):
@@ -83,7 +81,7 @@ async def start_workers(manager_address, manager_port):
                 jobs = _
                 # print(f"Received {len(_)} jobs from manager")
 
-            jobs_hosts = set(_["host"] for _ in jobs)
+            jobs_hosts = set(_["login"]["host"] for _ in jobs)
             active_hosts = set(workers)
             batch_hosts = set()
 
@@ -97,11 +95,11 @@ async def start_workers(manager_address, manager_port):
                 print()
 
                 for job in jobs:
-                    if job["host"] in batch_hosts:
+                    if job["login"]["host"] in batch_hosts:
                         asyncio.create_task(worker(job))
-                        workers[job["host"]] = 30
-                    elif workers.get(job["host"], None):
-                        workers[job["host"]] = time.time() + 15
+                        workers[job["login"]["host"]] = 30
+                    elif workers.get(job["login"]["host"], None):
+                        workers[job["login"]["host"]] = time.time() + 15
 
             await asyncio.sleep(1)
 

@@ -93,7 +93,9 @@ async def start_workers(manager_address, manager_port):
 
             while not is_socket_closed(sock):
 
-                jobs = await nj.read()
+                if _ := await nj.read(blocking=False):
+                    print(f"Received {len(_)} jobs from manager")
+                    jobs = _
 
                 jobs_hosts = set(_["host"] for _ in jobs)
                 active_hosts = set(workers)
@@ -144,9 +146,6 @@ async def print_results():
 
 def main():
     """ Main program function """
-
-    with open("hosts") as _:
-        hostnames = _.read().splitlines()
 
     multiprocessing.Process(target=start_asyncio, args=("127.0.0.1", 5555)).start()
     # multiprocessing.Process(target=start_asyncio, args=(hostnames,)).start()

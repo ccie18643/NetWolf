@@ -36,6 +36,7 @@ async def agent_connection(reader, writer):
     print(f"Added agent {agent} to agent list")
 
     while not is_socket_closed(sock):
+        print(f"Sending {len(agents[agent])} jobs to {agent}")
         await nj.write(agents[agent])
         agents[agent].clear()
         await asyncio.sleep(5)

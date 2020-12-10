@@ -5,19 +5,6 @@ import json
 import struct
 import asyncio
 import socket
-import time
-
-def is_socket_closed(sock):
-    try:
-        # this will try to read bytes without blocking and also without removing them from buffer (peek only)
-        data = sock.recv(16, socket.MSG_DONTWAIT | socket.MSG_PEEK)
-        if len(data) == 0:
-            return True
-    except BlockingIOError:
-        return False  # socket is open and reading from it would block
-    except ConnectionResetError:
-        return True  # socket was closed for some other reason
-    return False
 
 
 class NetJson:
@@ -37,7 +24,7 @@ class NetJson:
     async def _read_socket(self):
         """ Read data into buffer """
 
-        while not is_socket_closed(self._socket):
+        while not self.is_socket_closed():
             _ = await self._reader.read(2048)
             self._rx_buffer += _
 
@@ -61,17 +48,17 @@ class NetJson:
         if blocking:
             while len(self._rx_buffer) < 5:
                 await asyncio.sleep(0.001)
-            
+
             message_len, compression = struct.unpack("!L?", self._rx_buffer[0:5])
-            
+
             while len(self._rx_buffer) < message_len + 5:
                 await asyncio.sleep(0.001)
         else:
             if len(self._rx_buffer) < 5:
                 return None
-            
+
             message_len, compression = struct.unpack("!L?", self._rx_buffer[0:5])
-            
+
             while len(self._rx_buffer) < message_len + 5:
                 return None
 
@@ -82,3 +69,14 @@ class NetJson:
             message = bz2.decompress(message)
 
         return json.loads(message)
+
+    def is_socket_closed(self):
+        """ Chck if socket has been closed by emote peer """
+
+        try:
+            return not len(self._socket.recv(16, socket.MSG_DONTWAIT | socket.MSG_PEEK))
+        except BlockingIOError:
+            return False
+        except ConnectionResetError:
+            return True
+        return False

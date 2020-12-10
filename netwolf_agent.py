@@ -2,10 +2,7 @@
 
 import asyncio
 import netdev
-import socket
-import struct
 import re
-import json
 import time
 
 from socket import gaierror
@@ -16,19 +13,6 @@ from os import system
 import multiprocessing
 import random
 import netjson
-
-
-def is_socket_closed(sock):
-    try:
-        # this will try to read bytes without blocking and also without removing them from buffer (peek only)
-        data = sock.recv(16, socket.MSG_DONTWAIT | socket.MSG_PEEK)
-        if len(data) == 0:
-            return True
-    except BlockingIOError:
-        return False  # socket is open and reading from it would block
-    except ConnectionResetError:
-        return True  # socket was closed for some other reason
-    return False
 
 
 def find_regex_ml(text, regex, hint=None, optional=True):
@@ -75,54 +59,48 @@ async def worker(job):
     workers.pop(job["host"])
     results.pop(job["host"], None)
 
+
 async def start_workers(manager_address, manager_port):
     """ Process function """
 
-    asyncio.create_task(print_results())
-    job_buffer = b""
+    # asyncio.create_task(print_results())
 
     while True:
+        print(f"Attempting connction to {manager_address}, port {manager_port}")
+
         try:
-            print(f"Attempting connction to {manager_address}, port {manager_port}")
-            reader, writer = await asyncio.open_connection(manager_address, manager_port)
-            sock = writer.get_extra_info("socket")
-
-            nj = netjson.NetJson(reader, writer)
-
-            jobs = []
-
-            while not is_socket_closed(sock):
-
-                if _ := await nj.read(blocking=False):
-                    print(f"Received {len(_)} jobs from manager")
-                    jobs = _
-
-                jobs_hosts = set(_["host"] for _ in jobs)
-                active_hosts = set(workers)
-                batch_hosts = set()
-
-                if jobs_hosts:
-                    for _ in range(10):
-                        if candidate_hosts := list(jobs_hosts - active_hosts - batch_hosts):
-                            batch_hosts.add(random.choice(candidate_hosts))
-
-                    print("JOB", len(jobs_hosts))
-                    print("ACTIVE", len(active_hosts))
-                    print("BATCH",len(batch_hosts))
-                    print()
-
-                    for job in jobs:
-                        if job["host"] in batch_hosts:
-                            #print(job["host"])
-                            asyncio.create_task(worker(job))
-                            workers[job["host"]] = time.time() + 60
-                            continue
-                        if workers.get(job["host"], None):
-                            workers[job["host"]] = time.time() + 15
-
-                await asyncio.sleep(1)
-
+            nj = netjson.NetJson(*await asyncio.open_connection(manager_address, manager_port))
         except ConnectionRefusedError:
+            await asyncio.sleep(1)
+
+        jobs = []
+
+        while not nj.is_socket_closed():
+
+            if _ := await nj.read(blocking=False):
+                jobs = _
+                # print(f"Received {len(_)} jobs from manager")
+
+            jobs_hosts = set(_["host"] for _ in jobs)
+            active_hosts = set(workers)
+            batch_hosts = set()
+
+            if jobs_hosts:
+                for _ in range(10):
+                    if candidate_hosts := list(jobs_hosts - active_hosts - batch_hosts):
+                        batch_hosts.add(random.choice(candidate_hosts))
+
+                print("Jobs received:", len(jobs_hosts))
+                print("Jobs running:", len(active_hosts))
+                print()
+
+                for job in jobs:
+                    if job["host"] in batch_hosts:
+                        asyncio.create_task(worker(job))
+                        workers[job["host"]] = 30
+                    elif workers.get(job["host"], None):
+                        workers[job["host"]] = time.time() + 15
+
             await asyncio.sleep(1)
 
 
@@ -136,10 +114,10 @@ async def print_results():
     """ """
 
     while True:
-        # system("clear")
+        system("clear")
         n = 0
         for host in results:
-            #print(f"{int(results[host]['cpu']):02}", "", end="" if n % 10 else "\n")
+            print(f"{int(results[host]['cpu']):02}", "", end="" if n % 10 else "\n")
             n += 1
         await asyncio.sleep(1)
 

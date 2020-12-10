@@ -1,25 +1,8 @@
 #!/usr/bin/env python3
 
 import asyncio
-import socket
-import itertools
-import json
-import struct
 
 import netjson
-
-
-def is_socket_closed(sock):
-    try:
-        # this will try to read bytes without blocking and also without removing them from buffer (peek only)
-        data = sock.recv(16, socket.MSG_DONTWAIT | socket.MSG_PEEK)
-        if len(data) == 0:
-            return True
-    except BlockingIOError:
-        return False  # socket is open and reading from it would block
-    except ConnectionResetError:
-        return True  # socket was closed for some other reason
-    return False
 
 
 agents = {}
@@ -28,14 +11,12 @@ agents = {}
 async def agent_connection(reader, writer):
 
     agent = writer.get_extra_info("peername")
-    sock = writer.get_extra_info("socket")
-
     nj = netjson.NetJson(reader, writer)
 
     agents[agent] = []
     print(f"Added agent {agent} to agent list")
 
-    while not is_socket_closed(sock):
+    while not nj.is_socket_closed():
         print(f"Sending {len(agents[agent])} jobs to {agent}")
         await nj.write(agents[agent])
         agents[agent].clear()
@@ -87,7 +68,7 @@ async def agent_monitor():
 
 
 async def main():
-    server = await asyncio.start_server(agent_connection, "127.0.0.1", 5555)
+    server = await asyncio.start_server(agent_connection, "0.0.0.0", 5555)
 
     addr = server.sockets[0].getsockname()
     print(f"Server waiting for agents on: {addr}")

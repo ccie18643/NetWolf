@@ -4,6 +4,7 @@ import asyncio
 import netdev
 import re
 import time
+import multiprocessing
 
 from socket import gaierror
 from asyncssh.misc import PermissionDenied, ConnectionLost
@@ -53,6 +54,7 @@ async def worker(job):
         ConnectionRefusedError,
         netdev.exceptions.TimeoutError,
         IndexError,
+        OSError,
     ):
         pass
 
@@ -125,8 +127,8 @@ async def print_results():
 def main():
     """ Main program function """
 
-    multiprocessing.Process(target=start_asyncio, args=("127.0.0.1", 5555)).start()
-    # multiprocessing.Process(target=start_asyncio, args=(hostnames,)).start()
+    for _ in range(multiprocessing.cpu_count()):
+        multiprocessing.Process(target=start_asyncio, args=("127.0.0.1", 5555)).start()
 
 
 if __name__ == "__main__":

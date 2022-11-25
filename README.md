@@ -3,8 +3,6 @@
 ### Distributed network atomation concept
 <br>
 
----
-
 NetWolf is a proof of concept for the distributed real-time network monitoring and automation system capable of simultaneously interacting with thousands of network devices using vertical and horizontal scaling resources. It consists of the manager program and the number of agents. Agents can be spread over multiple machines and bind separate processes to every available CPU core. Each of those processes maintains SSH connectivity to multiple network devices. To achieve a high number of connections per core and simultaneously consume the least possible memory, the agent is internally based on Asyncio. Agent registers with the manager and receives jobs containing the hostname for the network device it's supposed to connect to and the set of commands that need to execute. For monitoring, the job can also contain filters that must be applied to the command output before it's sent back to the manager.
 
 For the purposes of PoC, I have set it up to retrieve the CPU load from couple hundred of Cisco switches and routers. Currently, I was able to maintain around 350 SSH sessions using a single core and pulling fresh data from each device every second. Obviously, with this approach, the number of monitored devices scales nicely with the number of CPU cores and the number of machines used by agents. NetWolf is in a very early stage of development and is nothing more than just a toy project. However, it also has an excellent potential to be helpful in the production environment once it's mature enough.
